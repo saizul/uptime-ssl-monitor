@@ -1,0 +1,57 @@
+{
+  "name": "uptime-ssl-monitor",
+  "version": "1.0.0",
+  "description": "Self-hosted uptime, TLS certificate and domain expiry monitor with a CLI, a daemon, alerting and a static status page.",
+  "keywords": [
+    "uptime",
+    "monitoring",
+    "ssl",
+    "tls",
+    "certificate",
+    "rdap",
+    "status-page"
+  ],
+  "author": "Saizul Amin <https://saizul.com>",
+  "license": "MIT",
+  "homepage": "https://saizul.com",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "monitor": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/bin.js",
+    "prepublishOnly": "npm run lint && npm test && npm run build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  },
+  "optionalDependencies": {
+    "nodemailer": "^10.3.1"
+  }
+}

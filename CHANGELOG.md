@@ -1,0 +1,19 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/).
+
+## [1.0.0] - 2026-11-07
+
+### Added
+- Checks: HTTP(S) (status, keyword present/absent, response time, redirects), TCP port,
+  TLS certificate (days left, issuer, SAN match, chain trust) and domain expiry through RDAP with caching.
+- Scheduler with per-target intervals, jitter, staggered start and quicker re-checks while a failure is unconfirmed.
+- State machine (up, degraded, down) with retries, recovery threshold and flap protection.
+- Alert channels: Telegram, Slack webhook, HMAC signed generic webhook and SMTP email
+  (optional nodemailer or a custom transport).
+- SQLite persistence with retention and daily rollups.
+- Static, responsive status page with dark and light themes and 90-day uptime bars.
+- CLI: `monitor check` (CI-friendly exit codes), `monitor run`, `monitor status-page`, `monitor validate`.
+- Dockerfile and example configuration.

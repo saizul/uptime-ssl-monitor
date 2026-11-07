@@ -1,0 +1,80 @@
+# Copy to monitor.yaml and adjust. Secrets can come from the environment: ${VAR} or ${VAR:-default}
+
+database: ./data/monitor.db
+retentionDays: 30          # raw results; daily rollups for the status page are kept for a year
+jitter: 10%                # spread every interval by +/- 10%
+
+defaults:
+  interval: 60s
+  timeout: 10s
+  retries: 2               # re-checks before a failure is confirmed and alerted
+  retryInterval: 10s       # how soon to re-check while a failure is unconfirmed
+  recovery: 2              # good checks in a row before "recovered"
+
+flap:
+  window: 10m              # 4 status changes inside 10 minutes = flapping,
+  threshold: 4             # alerts are muted until it has been stable for a full window
+
+rdap:
+  baseUrl: https://rdap.org/domain/
+  cacheHours: 24
+
+statusPage:
+  title: Example status
+  description: Live status of our services
+  outDir: ./public         # used by "monitor run" (refreshed every refreshMinutes) and "status-page"
+  refreshMinutes: 5
+
+alerts:
+  - name: ops-telegram
+    type: telegram
+    botToken: ${TELEGRAM_BOT_TOKEN}
+    chatId: ${TELEGRAM_CHAT_ID}
+  - name: team-slack
+    type: slack
+    webhookUrl: ${SLACK_WEBHOOK_URL}
+  - name: pager-webhook
+    type: webhook
+    url: https://example.com/hooks/monitor
+    secret: ${WEBHOOK_SECRET}
+  - name: ops-mail
+    type: email                 # needs: npm install nodemailer
+    from: monitor@example.com
+    to: [ops@example.com]
+    smtp: { host: smtp.example.com, port: 587, user: ${SMTP_USER}, pass: ${SMTP_PASS} }
+
+targets:
+  - name: Website
+    type: http
+    url: https://example.com/
+    expectedStatus: [200]
+    keyword: "Example Domain"
+    keywordAbsent: "Application error"
+    maxResponseTime: 1500ms     # slower than this is "degraded"
+    alerts: [ops-telegram, team-slack]
+
+  - name: API health
+    type: http
+    url: https://example.com/health
+    interval: 30s
+
+  - name: Database
+    type: tcp
+    host: db.internal.example.com
+    port: 5432
+    hidden: true                # monitored, but not shown on the status page
+
+  - name: Website certificate
+    type: tls
+    host: example.com
+    san: [example.com, www.example.com]
+    issuer: "Let's Encrypt"
+    warnDays: 21                # degraded below 21 days
+    criticalDays: 7             # down below 7 days
+    interval: 6h
+
+  - name: example.com registration
+    type: domain
+    domain: example.com
+    warnDays: 45
+    criticalDays: 14
