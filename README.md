@@ -9,7 +9,7 @@ A small self-hosted monitor for websites, TCP services, TLS certificates and dom
 - Per-target intervals with jitter, retries before alerting, recovery thresholds and flap protection
 - Alerts: Telegram, Slack webhook, HMAC signed webhook, email (SMTP)
 - SQLite history with retention, daily rollups, and a responsive dark/light status page with 90-day uptime bars
-- Node 20+, TypeScript, tiny dependency list (`yaml`, `better-sqlite3`; `nodemailer` is optional)
+- Node 22+, TypeScript, tiny dependency list (`yaml`, `better-sqlite3`; `nodemailer` is optional)
 
 ## Install
 
