@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main } from '../src/cli.js';
+import { main, selectTargets } from '../src/cli.js';
 import { Store } from '../src/store.js';
 import { closedPort, startHttpServer } from './helpers/servers.js';
 
@@ -68,6 +68,36 @@ describe('monitor check', () => {
     const code = await main(['check', '-c', writeConfig(goodTarget() + badTarget()), '--only', 'Good']);
     expect(code).toBe(0);
     expect(stdout.join('')).not.toContain('Bad');
+  });
+
+  it('adds ok and checkedAt to every JSON entry', async () => {
+    const path = writeConfig(goodTarget() + slowTarget() + badTarget());
+    await main(['check', '-c', path, '--json']);
+    const data = JSON.parse(stdout.join(''));
+    expect(data.map((d: { name: string; ok: boolean }) => [d.name, d.ok])).toEqual([['Good', true], ['Slow', true], ['Bad', false]]);
+    for (const d of data) {
+      expect(d).toEqual(expect.objectContaining({ type: 'http', latencyMs: expect.any(Number), message: expect.any(String) }));
+      expect(new Date(d.checkedAt).toISOString()).toBe(d.checkedAt);
+    }
+    stdout.length = 0;
+    await main(['check', '-c', path, '--json', '--fail-on', 'degraded']);
+    const strict = JSON.parse(stdout.join(''));
+    expect(strict.map((d: { ok: boolean }) => d.ok)).toEqual([true, false, false]);
+  });
+
+  it('filters JSON output with --only (repeated, comma separated, any case)', async () => {
+    const path = writeConfig(goodTarget() + slowTarget() + badTarget());
+    expect(await main(['check', '-c', path, '--json', '--only', 'good,BAD'])).toBe(1);
+    expect(JSON.parse(stdout.join('')).map((d: { name: string }) => d.name)).toEqual(['Good', 'Bad']);
+    stdout.length = 0;
+    expect(await main(['check', '-c', path, '--json', '--only', 'Slow', '--only', 'Good'])).toBe(0);
+    expect(JSON.parse(stdout.join('')).map((d: { name: string }) => d.name)).toEqual(['Good', 'Slow']);
+  });
+
+  it('lists the available targets when --only has an unknown name', async () => {
+    expect(await main(['check', '-c', writeConfig(goodTarget() + badTarget()), '--only', 'Good,Nope'])).toBe(2);
+    expect(stderr.join('')).toContain('Unknown target(s): Nope. Available: Good, Bad');
+    expect(stdout.join('')).toBe('');
   });
 
   it('rejects unknown targets and bad --fail-on', async () => {
@@ -142,5 +172,26 @@ describe('other commands', () => {
     const path = writeConfig(goodTarget(), `statusPage: { outDir: "${out}" }`);
     expect(await main(['status-page', '-c', path])).toBe(0);
     expect(existsSync(join(out, 'status.json'))).toBe(true);
+  });
+});
+
+describe('selectTargets', () => {
+  const t = (name: string): never => ({ name }) as never;
+  const all = [t('Web'), t('API'), t('web')];
+
+  it('returns everything without a filter', () => {
+    expect(selectTargets(all, [])).toEqual({ targets: all, unknown: [] });
+    expect(selectTargets(all, [' , '])).toEqual({ targets: all, unknown: [] });
+  });
+
+  it('prefers exact matches and falls back to case-insensitive', () => {
+    expect(selectTargets(all, ['web']).targets).toEqual([all[2]]);
+    expect(selectTargets(all, ['api']).targets).toEqual([all[1]]);
+  });
+
+  it('keeps config order, drops duplicates and reports unknown names', () => {
+    const r = selectTargets(all, ['API,Web', 'api', 'x']);
+    expect(r.targets).toEqual([all[0], all[1]]);
+    expect(r.unknown).toEqual(['x']);
   });
 });

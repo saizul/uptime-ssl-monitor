@@ -5,7 +5,7 @@ import { MonitorService } from './monitor.js';
 import { Scheduler } from './scheduler.js';
 import { writeStatusPage } from './statuspage.js';
 import { Store } from './store.js';
-import { SEVERITY, type Config, type Status } from './types.js';
+import { SEVERITY, type Config, type Status, type Target } from './types.js';
 import { formatDuration } from './util.js';
 
 const VERSION = '1.0.0';
@@ -13,7 +13,7 @@ const VERSION = '1.0.0';
 const HELP = `uptime-ssl-monitor ${VERSION}
 
 Usage:
-  monitor check        [-c config.yaml] [--only name] [--json] [--fail-on down|degraded] [--alerts] [--record]
+  monitor check        [-c config.yaml] [--only name[,name]] [--json] [--fail-on down|degraded] [--alerts] [--record]
   monitor run          [-c config.yaml]
   monitor status-page  [-c config.yaml] --out <dir>
   monitor validate     [-c config.yaml]
@@ -21,8 +21,8 @@ Usage:
 Options:
   -c, --config <file>  Configuration file (default: monitor.yaml)
   -o, --out <dir>      Output directory for the status page
-      --only <name>    Check only the named target (repeatable)
-      --json           Print machine readable JSON (check)
+      --only <name>    Check only the named target(s); repeatable or comma separated, case-insensitive
+      --json           Print machine readable JSON (check): an array with name, type, status, message, latencyMs, details, ok, checkedAt
       --fail-on <lvl>  Exit 1 when a target is at this level or worse (default: down)
       --alerts         Send alerts during a one-shot check
       --record         Store one-shot results in the database
@@ -39,19 +39,35 @@ function stamp(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Resolve `--only` values to targets. Each value may hold several comma separated names.
+ * Names match exactly first, then case-insensitively. Config order is kept and duplicates dropped.
+ */
+export function selectTargets(all: Target[], only: string[]): { targets: Target[]; unknown: string[] } {
+  const wanted = only.flatMap((v) => v.split(',')).map((v) => v.trim()).filter((v) => v !== '');
+  if (wanted.length === 0) return { targets: all, unknown: [] };
+  const chosen = new Set<Target>();
+  const unknown: string[] = [];
+  for (const name of wanted) {
+    const hit = all.find((t) => t.name === name) ?? all.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (hit) chosen.add(hit);
+    else unknown.push(name);
+  }
+  return { targets: all.filter((t) => chosen.has(t)), unknown };
+}
+
 async function cmdCheck(config: Config, values: Record<string, unknown>): Promise<number> {
   const failOn = (values['fail-on'] as string | undefined) ?? 'down';
   if (failOn !== 'down' && failOn !== 'degraded') {
     err('--fail-on must be "down" or "degraded"');
     return 2;
   }
-  const only = (values['only'] as string[] | undefined) ?? [];
-  const targets = only.length > 0 ? config.targets.filter((t) => only.includes(t.name)) : config.targets;
-  const unknown = only.filter((n) => !config.targets.some((t) => t.name === n));
-  if (unknown.length > 0) {
-    err(`Unknown target(s): ${unknown.join(', ')}`);
+  const selection = selectTargets(config.targets, (values['only'] as string[] | undefined) ?? []);
+  if (selection.unknown.length > 0) {
+    err(`Unknown target(s): ${selection.unknown.join(', ')}. Available: ${config.targets.map((t) => t.name).join(', ')}`);
     return 2;
   }
+  const targets = selection.targets;
 
   const record = values['record'] === true || values['alerts'] === true;
   const store = record ? new Store(config.database) : undefined;
@@ -62,9 +78,17 @@ async function cmdCheck(config: Config, values: Record<string, unknown>): Promis
 
   const worst = outcomes.reduce((max, o) => Math.max(max, SEVERITY[o.result.status]), 0);
   if (values['json'] === true) {
+    const checkedAt = stamp();
     out(
       JSON.stringify(
-        outcomes.map((o) => ({ name: o.target.name, type: o.target.type, ...o.result })),
+        outcomes.map((o) => ({
+          name: o.target.name,
+          type: o.target.type,
+          ...o.result,
+          // true when this target alone would not trip --fail-on
+          ok: SEVERITY[o.result.status] < SEVERITY[failOn],
+          checkedAt,
+        })),
         null,
         2,
       ),

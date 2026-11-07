@@ -80,7 +80,7 @@ A fully commented file is in [`examples/monitor.example.yaml`](examples/monitor.
 ## Commands
 
 ```bash
-monitor check       -c monitor.yaml [--only name] [--json] [--fail-on down|degraded] [--alerts] [--record]
+monitor check       -c monitor.yaml [--only name[,name]] [--json] [--fail-on down|degraded] [--alerts] [--record]
 monitor run         -c monitor.yaml
 monitor status-page -c monitor.yaml --out ./public
 monitor validate    -c monitor.yaml
@@ -103,6 +103,31 @@ Runs every target once and prints the result. Exit codes:
 ```
 
 (Use `npx -p uptime-ssl-monitor monitor check ...` if your npm version needs the binary name.)
+
+`--only <name>` limits the run to some targets. Repeat the flag or separate names with commas (`--only "Main site,API"`); names match exactly first and then case-insensitively, and an unknown name exits with code 2 and lists the available ones.
+
+`--json` prints a JSON array to stdout (and nothing else), one object per target, so it is easy to pipe into `jq`:
+
+```bash
+monitor check -c monitor.yaml --json --only api | jq -r '.[] | select(.ok | not) | "\(.name): \(.message)"'
+```
+
+```json
+[
+  {
+    "name": "API",
+    "type": "http",
+    "status": "up",
+    "latencyMs": 84,
+    "message": "HTTP 200 in 84ms",
+    "details": { "statusCode": 200, "url": "https://example.com/health", "redirects": 0 },
+    "ok": true,
+    "checkedAt": "2026-11-07T10:15:00.000Z"
+  }
+]
+```
+
+`status` is `up`, `degraded` or `down`; `details` depends on the check type. `ok` is `false` when the target is at or beyond `--fail-on`, so it always agrees with the exit code. The exit code is the same with and without `--json`.
 
 ### `monitor run`
 

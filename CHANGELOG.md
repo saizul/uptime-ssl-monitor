@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `monitor check --json` entries now include `ok` (agrees with `--fail-on`) and `checkedAt`.
+- `--only` accepts comma separated names and matches case-insensitively when there is no exact match; the unknown-name error lists the available targets.
+
 ## [1.0.0] - 2026-11-07
 
 ### Added
