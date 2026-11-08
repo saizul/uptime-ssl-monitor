@@ -12,10 +12,18 @@ interface Response {
   redirects: number;
 }
 
-function request(target: HttpTarget, url: URL, signal: AbortSignal, wantBody: boolean): Promise<{ status: number; location?: string; body: string }> {
+function request(target: HttpTarget, url: URL, signal: AbortSignal, wantBody: boolean, sameOrigin: boolean): Promise<{ status: number; location?: string; body: string }> {
   return new Promise((resolve, reject) => {
     const lib = url.protocol === 'https:' ? https : http;
     const headers: Record<string, string> = { 'user-agent': 'uptime-ssl-monitor/1.0', accept: '*/*', ...target.headers };
+    const hasAuthHeader = (): boolean => Object.keys(headers).some((h) => h.toLowerCase() === 'authorization');
+    if (!sameOrigin) {
+      // Never forward credentials to a different origin after a redirect.
+      for (const h of Object.keys(headers)) if (h.toLowerCase() === 'authorization') delete headers[h];
+    } else if (target.basicAuth && !hasAuthHeader()) {
+      const { username, password } = target.basicAuth;
+      headers['authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+    }
     if (target.body !== undefined && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-length')) {
       headers['content-length'] = String(Buffer.byteLength(target.body));
     }
@@ -49,9 +57,10 @@ function request(target: HttpTarget, url: URL, signal: AbortSignal, wantBody: bo
 
 async function fetchFollowing(target: HttpTarget, signal: AbortSignal): Promise<Response> {
   let url = new URL(target.url);
+  const origin = url.origin;
   const wantBody = target.keyword !== undefined || target.keywordAbsent !== undefined;
   for (let redirects = 0; ; redirects++) {
-    const res = await request(target, url, signal, wantBody);
+    const res = await request(target, url, signal, wantBody, url.origin === origin);
     if (res.location && res.status >= 300 && res.status < 400 && redirects < target.maxRedirects) {
       url = new URL(res.location, url);
       continue;

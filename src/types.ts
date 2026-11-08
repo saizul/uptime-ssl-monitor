@@ -41,6 +41,8 @@ export interface HttpTarget extends TargetBase {
   method: string;
   headers: Record<string, string>;
   body?: string;
+  /** HTTP Basic credentials. Sent only to the original origin, never to redirect targets on another origin. */
+  basicAuth?: { username: string; password: string };
   /** Numbers (200) or classes ("2xx"). */
   expectedStatus: Array<number | string>;
   keyword?: string;

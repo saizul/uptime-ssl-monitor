@@ -2,7 +2,7 @@
 
 A small self-hosted monitor for websites, TCP services, TLS certificates and domain registrations. Run it as a one-shot check in CI, or as a daemon that stores history in SQLite, sends alerts and publishes a static status page.
 
-- HTTP(S) checks: expected status, keyword present or absent, maximum response time (slow = degraded)
+- HTTP(S) checks: expected status, HTTP Basic auth, keyword present or absent, maximum response time (slow = degraded)
 - TCP port checks
 - TLS certificate checks: days left with warn and critical thresholds, issuer, SAN match (wildcards supported)
 - Domain expiry through [RDAP](https://rdap.org) with caching and stale fallback
@@ -57,6 +57,13 @@ targets:
     expectedStatus: [200]
     keyword: "Example Domain"
     maxResponseTime: 1500ms
+
+  - name: Admin area
+    type: http
+    url: https://example.com/admin
+    basicAuth:                   # sent as an Authorization header, never to other origins after a redirect
+      username: monitor
+      password: ${ADMIN_PASSWORD}
 
   - name: Database
     type: tcp

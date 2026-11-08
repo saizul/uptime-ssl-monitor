@@ -129,6 +129,14 @@ function parseTarget(raw: unknown, defaults: Obj, index: number): Target {
         maxRedirects: int(raw, 'maxRedirects', where, 5, 0, 20),
         insecure: bool(raw, 'insecure', where, false),
       };
+      const auth = raw['basicAuth'];
+      if (auth !== undefined) {
+        if (!isObj(auth)) throw new ConfigError(`${where}: "basicAuth" must be a mapping with "username" and "password"`);
+        const username = str(auth, 'username', `${where}.basicAuth`) as string;
+        const password = str(auth, 'password', `${where}.basicAuth`) as string;
+        if (username.includes(':')) throw new ConfigError(`${where}: basicAuth "username" must not contain ":"`);
+        target.basicAuth = { username, password };
+      }
       const body = str(raw, 'body', where, false);
       if (body !== undefined) target.body = body;
       const keyword = str(raw, 'keyword', where, false);
