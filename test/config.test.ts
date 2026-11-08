@@ -65,6 +65,30 @@ targets:
   });
 });
 
+describe('http basicAuth', () => {
+  const doc = (auth: string): string => `
+targets:
+  - name: Admin
+    type: http
+    url: https://example.com/admin
+${auth}`;
+
+  it('parses credentials and expands environment variables', () => {
+    const c = parseConfig(doc('    basicAuth:\n      username: bot\n      password: ${PW}'), { PW: 'hunter2' });
+    expect(c.targets[0]).toMatchObject({ basicAuth: { username: 'bot', password: 'hunter2' } });
+  });
+
+  it('is optional', () => {
+    expect(parseConfig(doc('')).targets[0]).not.toHaveProperty('basicAuth');
+  });
+
+  it('rejects malformed basicAuth', () => {
+    expect(() => parseConfig(doc('    basicAuth: nope'))).toThrow(/basicAuth/);
+    expect(() => parseConfig(doc('    basicAuth:\n      username: bot'))).toThrow(/password/);
+    expect(() => parseConfig(doc('    basicAuth:\n      username: "a:b"\n      password: x'))).toThrow(/":"/);
+  });
+});
+
 describe('parseConfig alert channels', () => {
   it('parses all channel types', () => {
     const c = parseConfig(`

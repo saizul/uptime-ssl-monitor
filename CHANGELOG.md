@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- HTTP targets accept `basicAuth` (`username`, `password`). Credentials are never forwarded to a different origin on redirect.
 - `monitor check --json` entries now include `ok` (agrees with `--fail-on`) and `checkedAt`.
 - `--only` accepts comma separated names and matches case-insensitively when there is no exact match; the unknown-name error lists the available targets.
 

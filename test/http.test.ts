@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkHttp } from '../src/checks/http.js';
-import { closedPort, httpTarget, startHttpServer, type TestServer } from './helpers/servers.js';
+import { closedPort, httpTarget, startHttpServer } from './helpers/servers.js';
 
 let server: Awaited<ReturnType<typeof startHttpServer>>;
 beforeAll(async () => { server = await startHttpServer(); });
@@ -91,6 +91,43 @@ describe('checkHttp', () => {
     expect(req?.headers['x-token']).toBe('abc');
     expect(req?.headers['user-agent']).toMatch(/uptime-ssl-monitor/);
   });
-});
 
-export type { TestServer };
+  describe('basicAuth', () => {
+    const creds = { username: 'monitor', password: 's3cret' };
+    const expected = `Basic ${Buffer.from('monitor:s3cret').toString('base64')}`;
+
+    it('sends an Authorization header', async () => {
+      const r = await checkHttp(httpTarget(server.port, '/ok', { basicAuth: creds }));
+      expect(r.status).toBe('up');
+      expect(server.requests.at(-1)?.headers['authorization']).toBe(expected);
+    });
+
+    it('does not override an explicit Authorization header', async () => {
+      await checkHttp(httpTarget(server.port, '/ok', { basicAuth: creds, headers: { Authorization: 'Bearer abc' } }));
+      expect(server.requests.at(-1)?.headers['authorization']).toBe('Bearer abc');
+    });
+
+    it('keeps credentials on same-origin redirects', async () => {
+      await checkHttp(httpTarget(server.port, '/redirect', { basicAuth: creds }));
+      expect(server.requests.at(-1)?.url).toBe('/ok');
+      expect(server.requests.at(-1)?.headers['authorization']).toBe(expected);
+    });
+
+    it('drops credentials when redirected to another origin', async () => {
+      const target = await startHttpServer();
+      const origin = await startHttpServer((_req, res) => {
+        res.writeHead(302, { location: `http://localhost:${target.port}/ok` });
+        res.end();
+      });
+      try {
+        const r = await checkHttp(httpTarget(origin.port, '/', { basicAuth: creds }));
+        expect(r.status).toBe('up');
+        expect(origin.requests.at(-1)?.headers['authorization']).toBe(expected);
+        expect(target.requests.at(-1)?.headers['authorization']).toBeUndefined();
+      } finally {
+        await origin.close();
+        await target.close();
+      }
+    });
+  });
+});
