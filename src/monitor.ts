@@ -4,6 +4,7 @@ import { runCheck, type RunnerContext } from './checks/index.js';
 import { applyResult, type StateOptions, type TargetState } from './state.js';
 import type { Store } from './store.js';
 import type { AlertEvent, CheckResult, Config, Target } from './types.js';
+import { activeMaintenance } from './util.js';
 
 export interface MonitorDeps {
   config: Config;
@@ -21,6 +22,8 @@ export interface CheckOutcome {
   result: CheckResult;
   state: TargetState;
   alert?: AlertEvent;
+  /** Set when the alert was not sent because the target is in a maintenance window. */
+  suppressedBy?: string;
   /** True while a failure is waiting for confirmation, so the next check should come sooner. */
   retrying: boolean;
 }
@@ -94,6 +97,12 @@ export class MonitorService {
         ...(result.details ? { details: result.details } : {}),
       };
       outcome.alert = event;
+      const window = activeMaintenance(this.cfg.maintenance, target.name, ts);
+      if (window) {
+        outcome.suppressedBy = window.name;
+        this.log('info', `alert ${event.kind} for ${target.name} suppressed by maintenance window "${window.name}"`);
+        return outcome;
+      }
       this.log('info', `alert ${event.kind}: ${target.name}`);
       const { failed } = await dispatchAlert(this.channels, target.alerts, event, (channel, err) =>
         this.log('error', `alert channel ${channel} failed: ${err.message}`),

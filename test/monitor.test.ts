@@ -225,3 +225,69 @@ describe('Scheduler', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('maintenance windows', () => {
+  function windowed(targets: string) {
+    const cfg = parseConfig(`
+defaults: { retries: 0, recovery: 1 }
+maintenance:
+  - { name: Upgrade, start: "2023-11-14T22:30:00Z", end: "2023-11-14T22:40:00Z", ${targets} }
+alerts:
+  - { name: one, type: slack, webhookUrl: https://h.test/1 }
+targets:
+  - { name: Site, type: http, url: "https://example.com" }
+  - { name: Db, type: tcp, host: db, port: 5432 }
+`);
+    const events: AlertEvent[] = [];
+    const channels: AlertChannel[] = [{ name: 'one', send: async (e) => { events.push(e); } }];
+    let status: Status = 'up';
+    let clock = Date.parse('2023-11-14T22:20:00Z');
+    const logs: string[] = [];
+    const service = new MonitorService({
+      config: cfg,
+      channels,
+      checkFn: async () => ({ status, latencyMs: 1, message: status }),
+      now: () => clock,
+      log: (_l, m) => logs.push(m),
+    });
+    return { cfg, events, logs, service, set: (s: Status) => { status = s; }, at: (iso: string) => { clock = Date.parse(iso); } };
+  }
+
+  it('suppresses alerts for targets inside the window and reports why', async () => {
+    const c = windowed('targets: [Site]');
+    await c.service.checkTarget(c.cfg.targets[0]!);
+    c.at('2023-11-14T22:35:00Z');
+    c.set('down');
+    const o = await c.service.checkTarget(c.cfg.targets[0]!);
+    expect(o.state.status).toBe('down');
+    expect(o.alert?.kind).toBe('down');
+    expect(o.suppressedBy).toBe('Upgrade');
+    expect(c.events).toHaveLength(0);
+    expect(c.logs.some((m) => m.includes('suppressed by maintenance window "Upgrade"'))).toBe(true);
+  });
+
+  it('still alerts targets that are not listed', async () => {
+    const c = windowed('targets: [Site]');
+    await c.service.checkTarget(c.cfg.targets[1]!);
+    c.at('2023-11-14T22:35:00Z');
+    c.set('down');
+    const o = await c.service.checkTarget(c.cfg.targets[1]!);
+    expect(o.suppressedBy).toBeUndefined();
+    expect(c.events.map((e) => e.target)).toEqual(['Db']);
+  });
+
+  it('alerts again once the window is over', async () => {
+    const c = windowed('');
+    await c.service.checkTarget(c.cfg.targets[0]!);
+    c.at('2023-11-14T22:35:00Z');
+    c.set('down');
+    await c.service.checkTarget(c.cfg.targets[0]!);
+    c.at('2023-11-14T22:41:00Z');
+    c.set('up');
+    const o = await c.service.checkTarget(c.cfg.targets[0]!);
+    expect(o.alert?.kind).toBe('recovered');
+    expect(o.suppressedBy).toBeUndefined();
+    expect(c.events.map((e) => e.kind)).toEqual(['recovered']);
+  });
+});
+

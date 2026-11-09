@@ -93,6 +93,16 @@ export interface AlertChannelConfig {
   [key: string]: unknown;
 }
 
+export interface MaintenanceWindow {
+  name: string;
+  /** Target names the window applies to. Empty means all targets. */
+  targets: string[];
+  /** Start of the window (ms since epoch, inclusive). */
+  start: number;
+  /** End of the window (ms since epoch, exclusive). */
+  end: number;
+}
+
 export interface Config {
   database: string;
   /** Days of raw check results to keep. */
@@ -101,6 +111,8 @@ export interface Config {
   /** Jitter as a fraction of the interval (0.1) applied to each schedule. */
   jitter: number;
   flap: { windowMs: number; threshold: number };
+  /** Alerts for matching targets are suppressed while a window is active. */
+  maintenance: MaintenanceWindow[];
   statusPage: { title: string; description: string; outDir?: string; refreshMinutes: number };
   channels: AlertChannelConfig[];
   targets: Target[];

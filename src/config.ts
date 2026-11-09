@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
-import type { AlertChannelConfig, Config, DomainTarget, HttpTarget, TcpTarget, Target, TargetBase, TlsTarget } from './types.js';
+import type { AlertChannelConfig, Config, DomainTarget, HttpTarget, MaintenanceWindow, TcpTarget, Target, TargetBase, TlsTarget } from './types.js';
 import { parseDuration } from './util.js';
 
 export class ConfigError extends Error {
@@ -218,6 +218,36 @@ function parseChannel(raw: unknown, index: number): AlertChannelConfig {
   return { ...raw, name, type } as AlertChannelConfig;
 }
 
+const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
+
+function parseMoment(o: Obj, key: string, where: string): number {
+  const v = o[key];
+  const text = v instanceof Date ? v.toISOString() : v;
+  if (typeof text !== 'string' || !ISO_WITH_ZONE.test(text.trim())) {
+    throw new ConfigError(`${where}: "${key}" must be a date and time with a time zone, e.g. "2026-12-01T22:00:00Z" or "2026-12-01T22:00:00+06:00"`);
+  }
+  const ms = Date.parse(text.trim().replace(' ', 'T'));
+  if (Number.isNaN(ms)) throw new ConfigError(`${where}: "${key}" is not a valid date`);
+  return ms;
+}
+
+function parseMaintenance(raw: unknown, targetNames: Set<string>): MaintenanceWindow[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new ConfigError('"maintenance" must be a list');
+  return raw.map((entry, i) => {
+    const where = `maintenance[${i}]`;
+    if (!isObj(entry)) throw new ConfigError(`${where} must be a mapping`);
+    const start = parseMoment(entry, 'start', where);
+    const end = parseMoment(entry, 'end', where);
+    if (end <= start) throw new ConfigError(`${where}: "end" must be after "start"`);
+    const targets = strList(entry, 'targets', where);
+    for (const name of targets) {
+      if (!targetNames.has(name)) throw new ConfigError(`${where} references unknown target "${name}"`);
+    }
+    return { name: str(entry, 'name', where, false) ?? `maintenance-${i + 1}`, targets, start, end };
+  });
+}
+
 /** Validate an already parsed YAML document and fill in defaults. */
 export function normalizeConfig(doc: unknown, env: NodeJS.ProcessEnv = process.env): Config {
   if (!isObj(doc)) throw new ConfigError('The configuration must be a YAML mapping');
@@ -248,6 +278,8 @@ export function normalizeConfig(doc: unknown, env: NodeJS.ProcessEnv = process.e
     }
   }
 
+  const maintenance = parseMaintenance(root['maintenance'], seen);
+
   const rdap = isObj(root['rdap']) ? root['rdap'] : {};
   const flap = isObj(root['flap']) ? root['flap'] : {};
   const page = isObj(root['statusPage']) ? root['statusPage'] : {};
@@ -276,6 +308,7 @@ export function normalizeConfig(doc: unknown, env: NodeJS.ProcessEnv = process.e
       description: str(page, 'description', 'statusPage', false) ?? '',
       refreshMinutes: int(page, 'refreshMinutes', 'statusPage', 5, 1, 1440),
     },
+    maintenance,
     channels,
     targets,
   };
