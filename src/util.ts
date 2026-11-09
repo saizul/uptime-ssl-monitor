@@ -1,3 +1,5 @@
+import type { MaintenanceWindow } from './types.js';
+
 const UNITS: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
 /** Parse "500ms", "30s", "5m", "2h", "1d" or a plain number (milliseconds). */
@@ -57,4 +59,9 @@ export function formatDuration(ms: number): string {
 
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+}
+
+/** The first maintenance window that covers `target` at time `now`, if any. */
+export function activeMaintenance(windows: MaintenanceWindow[], target: string, now: number): MaintenanceWindow | undefined {
+  return windows.find((w) => now >= w.start && now < w.end && (w.targets.length === 0 || w.targets.includes(target)));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, escapeHtml, formatDuration, jitteredDelay, nameMatches, parseDuration, statusMatches } from '../src/util.js';
+import { activeMaintenance, daysBetween, escapeHtml, formatDuration, jitteredDelay, nameMatches, parseDuration, statusMatches } from '../src/util.js';
 
 describe('parseDuration', () => {
   it.each([
@@ -61,5 +61,24 @@ describe('misc helpers', () => {
   });
   it('escapeHtml escapes markup characters', () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
+  });
+});
+
+describe('activeMaintenance', () => {
+  const windows = [
+    { name: 'all', targets: [], start: 1000, end: 2000 },
+    { name: 'db', targets: ['Db'], start: 5000, end: 6000 },
+  ];
+
+  it('matches inside the window, start inclusive and end exclusive', () => {
+    expect(activeMaintenance(windows, 'Site', 1000)?.name).toBe('all');
+    expect(activeMaintenance(windows, 'Site', 1999)?.name).toBe('all');
+    expect(activeMaintenance(windows, 'Site', 999)).toBeUndefined();
+    expect(activeMaintenance(windows, 'Site', 2000)).toBeUndefined();
+  });
+
+  it('only matches listed targets when targets are given', () => {
+    expect(activeMaintenance(windows, 'Db', 5500)?.name).toBe('db');
+    expect(activeMaintenance(windows, 'Site', 5500)).toBeUndefined();
   });
 });

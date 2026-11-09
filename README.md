@@ -155,6 +155,20 @@ Each result is `up`, `degraded` or `down`. The confirmed status changes only whe
 
 Degraded means: slower than `maxResponseTime`, a certificate or domain inside its warning window, or an RDAP registry that could not be reached (a registry outage is never reported as your domain being down).
 
+### Maintenance windows
+
+Planned work should not page anyone. Add one or more windows to the configuration:
+
+```yaml
+maintenance:
+  - name: Database upgrade
+    start: "2026-12-06T22:00:00Z"   # time zone required (Z or +06:00)
+    end: "2026-12-07T00:00:00Z"
+    targets: [Database, Website]    # optional, default is every target
+```
+
+While a window is active (`start` inclusive, `end` exclusive) checks, history and the status page continue as usual, but alerts for the matching targets are not sent. An alert that was suppressed is not repeated later: if a target is still down when the window ends, the next alert comes with its next status change.
+
 ### Channels
 
 | Type | Required settings |

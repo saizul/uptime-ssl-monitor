@@ -156,3 +156,39 @@ describe('environment interpolation', () => {
     expect(c.channels[0]).toMatchObject({ webhookUrl: 'https://hooks.test/abc' });
   });
 });
+
+describe('maintenance windows', () => {
+  const withMaintenance = (block: string): string => `${MIN}\nmaintenance:\n${block}`;
+
+  it('defaults to none', () => {
+    expect(parseConfig(MIN).maintenance).toEqual([]);
+  });
+
+  it('parses windows with a zone and target list', () => {
+    const c = parseConfig(withMaintenance(`  - { name: Upgrade, start: "2026-12-06T22:00:00Z", end: "2026-12-07T06:00:00+06:00", targets: [Site] }`));
+    expect(c.maintenance).toEqual([
+      { name: 'Upgrade', targets: ['Site'], start: Date.parse('2026-12-06T22:00:00Z'), end: Date.parse('2026-12-07T06:00:00+06:00') },
+    ]);
+  });
+
+  it('names unnamed windows and applies to all targets', () => {
+    const c = parseConfig(withMaintenance(`  - { start: "2026-12-06T22:00:00Z", end: "2026-12-06T23:00:00Z" }`));
+    expect(c.maintenance[0]).toMatchObject({ name: 'maintenance-1', targets: [] });
+  });
+
+  it('requires a time zone', () => {
+    expect(() => parseConfig(withMaintenance(`  - { start: "2026-12-06T22:00:00", end: "2026-12-06T23:00:00Z" }`))).toThrow(/time zone/);
+  });
+
+  it('rejects an end before the start', () => {
+    expect(() => parseConfig(withMaintenance(`  - { start: "2026-12-06T23:00:00Z", end: "2026-12-06T22:00:00Z" }`))).toThrow(/after "start"/);
+  });
+
+  it('rejects unknown targets', () => {
+    expect(() => parseConfig(withMaintenance(`  - { start: "2026-12-06T22:00:00Z", end: "2026-12-06T23:00:00Z", targets: [Nope] }`))).toThrow(/unknown target "Nope"/);
+  });
+
+  it('rejects a non-list value', () => {
+    expect(() => parseConfig(`${MIN}\nmaintenance: soon`)).toThrow(/must be a list/);
+  });
+});

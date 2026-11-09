@@ -25,6 +25,12 @@ statusPage:
   outDir: ./public         # used by "monitor run" (refreshed every refreshMinutes) and "status-page"
   refreshMinutes: 5
 
+maintenance:               # no alerts for these targets inside the window (checks and history continue)
+  - name: Database upgrade
+    start: "2026-12-06T22:00:00Z"   # a time zone (Z or +06:00) is required
+    end: "2026-12-07T00:00:00Z"
+    targets: [Database, Website]    # omit to cover every target
+
 alerts:
   - name: ops-telegram
     type: telegram
@@ -41,7 +47,11 @@ alerts:
     type: email                 # needs: npm install nodemailer
     from: monitor@example.com
     to: [ops@example.com]
-    smtp: { host: smtp.example.com, port: 587, user: ${SMTP_USER}, pass: ${SMTP_PASS} }
+    smtp:
+      host: smtp.example.com
+      port: 587
+      user: ${SMTP_USER}
+      pass: ${SMTP_PASS}
 
 targets:
   - name: Website
