@@ -205,3 +205,14 @@ npm run build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed, by [Saizul Amin](https://saizul.com).
+
+## Install from GitHub Packages
+
+Releases are published to [GitHub Packages](https://github.com/saizul/uptime-ssl-monitor/pkgs/npm/uptime-ssl-monitor) as `@saizul/uptime-ssl-monitor`:
+
+```bash
+echo "@saizul:registry=https://npm.pkg.github.com" >> .npmrc
+npm install @saizul/uptime-ssl-monitor
+```
+
+GitHub Packages needs a personal access token with `read:packages` in your `~/.npmrc` (`//npm.pkg.github.com/:_authToken=YOUR_TOKEN`).
