@@ -89,6 +89,21 @@ export class Store implements KeyValueCache {
     }));
   }
 
+  /** Raw results with `from <= ts <= to`, oldest first. */
+  resultsBetween(target: string, from: number, to: number): StoredResult[] {
+    const rows = this.db
+      .prepare('SELECT target, ts, status, latency_ms, message, details FROM results WHERE target = ? AND ts >= ? AND ts <= ? ORDER BY ts ASC, id ASC')
+      .all(target, from, to) as Array<{ target: string; ts: number; status: Status; latency_ms: number; message: string; details: string | null }>;
+    return rows.map((r) => ({
+      target: r.target,
+      ts: r.ts,
+      status: r.status,
+      latencyMs: r.latency_ms,
+      message: r.message,
+      ...(r.details ? { details: JSON.parse(r.details) as Record<string, unknown> } : {}),
+    }));
+  }
+
   latestResult(target: string): StoredResult | undefined {
     return this.recentResults(target, 1)[0];
   }

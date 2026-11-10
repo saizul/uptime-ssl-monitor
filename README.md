@@ -89,6 +89,7 @@ A fully commented file is in [`examples/monitor.example.yaml`](examples/monitor.
 ```bash
 monitor check       -c monitor.yaml [--only name[,name]] [--json] [--fail-on down|degraded] [--alerts] [--record]
 monitor run         -c monitor.yaml
+monitor report      -c monitor.yaml [--since 7d] [--only name[,name]] [--json]
 monitor status-page -c monitor.yaml --out ./public
 monitor validate    -c monitor.yaml
 ```
@@ -139,6 +140,30 @@ monitor check -c monitor.yaml --json --only api | jq -r '.[] | select(.ok | not)
 ### `monitor run`
 
 The daemon. It restores state from SQLite, schedules every target on its own timer, writes results, sends alerts, prunes old data and, when `statusPage.outDir` is set, regenerates the status page every `refreshMinutes`. SIGINT and SIGTERM stop it gracefully.
+
+### `monitor report`
+
+Summarises the history stored by `monitor run` (or `monitor check --record`) for a time window, for a weekly email, a cron job or a quick look after an outage.
+
+```bash
+monitor report -c monitor.yaml --since 7d
+monitor report -c monitor.yaml --since 24h --only api,shop --json
+```
+
+```
+Uptime report 2026-06-08T12:00:00Z to 2026-06-15T12:00:00Z (7d 0h)
+
+Target   Uptime  Checks  Incidents  Downtime      Avg      p95
+api      99.91%   10080          1        9m     182ms    410ms
+shop    100.00%   10078          0         -     240ms    520ms
+
+Overall uptime: 99.95%
+
+Incidents for api:
+  2026-06-12T03:14:00Z - 2026-06-12T03:23:00Z  9m 0s, 9 failed check(s): HTTP 503
+```
+
+`--since` takes a duration such as `90m`, `24h`, `7d` or `2w` (default `7d`). Uptime is the share of checks that were up or degraded, the same definition as the status page. An incident is a run of consecutive `down` checks; it ends at the first later check that is not down, so its length has the resolution of the check interval, and an incident that is still open lasts until now. Latency figures ignore failed checks. Raw results are kept for `retentionDays`, so a longer window is reported with a note. Exit code is `0`, or `2` for a usage or configuration error.
 
 ### `monitor status-page`
 

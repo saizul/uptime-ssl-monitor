@@ -4,6 +4,8 @@ export { applyResult, initialState, type TargetState, type StateOptions, type St
 export { MonitorService, type CheckOutcome, type MonitorDeps } from './monitor.js';
 export { Scheduler, type SchedulerOptions } from './scheduler.js';
 export { Store } from './store.js';
+export { buildReport, buildTargetReport, findIncidents, formatReport, percentile } from './report.js';
+export type { Incident, Report, ReportInput, TargetReport } from './report.js';
 export { buildStatusModel, renderStatusPage, writeStatusPage } from './statuspage.js';
 export { runCheck } from './checks/index.js';
 export { createChannels, dispatchAlert, signPayload, verifySignature } from './alerts/index.js';

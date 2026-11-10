@@ -1,12 +1,12 @@
 import type { MaintenanceWindow } from './types.js';
 
-const UNITS: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+const UNITS: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
 
-/** Parse "500ms", "30s", "5m", "2h", "1d" or a plain number (milliseconds). */
+/** Parse "500ms", "30s", "5m", "2h", "1d", "1w" or a plain number (milliseconds). */
 export function parseDuration(value: unknown, label = 'duration'): number {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
   if (typeof value === 'string') {
-    const m = /^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)\s*$/.exec(value);
+    const m = /^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w)\s*$/.exec(value);
     if (m) return Math.round(Number(m[1]) * (UNITS[m[2] as string] as number));
   }
   throw new Error(`Invalid ${label}: ${JSON.stringify(value)} (use e.g. "30s", "5m", "1h")`);
