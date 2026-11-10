@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `monitor report [--since 7d] [--only ...] [--json]`: uptime, incidents, downtime and latency (average and p95) per target from the stored history. Durations now accept a `w` (weeks) unit.
 - Maintenance windows: a top-level `maintenance` list (`start`, `end`, optional `targets`) suppresses alerts for matching targets while a window is active. Checks, history and the status page keep running.
 - HTTP targets accept `basicAuth` (`username`, `password`). Credentials are never forwarded to a different origin on redirect.
 - `monitor check --json` entries now include `ok` (agrees with `--fail-on`) and `checkedAt`.

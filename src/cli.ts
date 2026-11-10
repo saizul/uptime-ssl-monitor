@@ -2,11 +2,12 @@ import { parseArgs } from 'node:util';
 import { createChannels } from './alerts/index.js';
 import { ConfigError, loadConfig } from './config.js';
 import { MonitorService } from './monitor.js';
+import { buildReport, formatReport } from './report.js';
 import { Scheduler } from './scheduler.js';
 import { writeStatusPage } from './statuspage.js';
 import { Store } from './store.js';
 import { SEVERITY, type Config, type Status, type Target } from './types.js';
-import { formatDuration } from './util.js';
+import { formatDuration, parseDuration } from './util.js';
 
 const VERSION = '1.0.0';
 
@@ -15,6 +16,7 @@ const HELP = `uptime-ssl-monitor ${VERSION}
 Usage:
   monitor check        [-c config.yaml] [--only name[,name]] [--json] [--fail-on down|degraded] [--alerts] [--record]
   monitor run          [-c config.yaml]
+  monitor report       [-c config.yaml] [--since 7d] [--only name[,name]] [--json]
   monitor status-page  [-c config.yaml] --out <dir>
   monitor validate     [-c config.yaml]
 
@@ -24,10 +26,13 @@ Options:
       --only <name>    Check only the named target(s); repeatable or comma separated, case-insensitive
       --json           Print machine readable JSON (check): an array with name, type, status, message, latencyMs, details, ok, checkedAt
       --fail-on <lvl>  Exit 1 when a target is at this level or worse (default: down)
+      --since <dur>    Window for "report", e.g. 24h, 7d, 2w (default: 7d)
       --alerts         Send alerts during a one-shot check
       --record         Store one-shot results in the database
   -h, --help           Show this help
   -v, --version        Show the version
+
+"report" summarises the stored history: uptime, incidents (runs of failed checks), downtime and latency per target.
 
 Exit codes for "check": 0 = healthy, 1 = a target is at or beyond --fail-on, 2 = usage or configuration error.
 `;
@@ -157,6 +162,36 @@ async function cmdRun(config: Config): Promise<number> {
   return 0;
 }
 
+function cmdReport(config: Config, values: Record<string, unknown>): number {
+  let windowMs: number;
+  try {
+    windowMs = parseDuration((values['since'] as string | undefined) ?? '7d', '--since');
+  } catch (e) {
+    err((e as Error).message);
+    return 2;
+  }
+  if (windowMs <= 0) {
+    err('--since must be greater than zero');
+    return 2;
+  }
+  const selection = selectTargets(config.targets, (values['only'] as string[] | undefined) ?? []);
+  if (selection.unknown.length > 0) {
+    err(`Unknown target(s): ${selection.unknown.join(', ')}. Available: ${config.targets.map((t) => t.name).join(', ')}`);
+    return 2;
+  }
+  const now = Date.now();
+  const store = new Store(config.database);
+  const report = buildReport(
+    selection.targets.map((t) => ({ name: t.name, type: t.type, results: store.resultsBetween(t.name, now - windowMs, now) })),
+    now,
+    windowMs,
+    config.retentionDays,
+  );
+  store.close();
+  out(values['json'] === true ? JSON.stringify(report, null, 2) : formatReport(report));
+  return 0;
+}
+
 function cmdStatusPage(config: Config, outDir: string | undefined): number {
   const dir = outDir ?? config.statusPage.outDir;
   if (!dir) {
@@ -181,6 +216,7 @@ export async function main(argv: string[]): Promise<number> {
         out: { type: 'string', short: 'o' },
         only: { type: 'string', multiple: true },
         json: { type: 'boolean' },
+        since: { type: 'string' },
         'fail-on': { type: 'string' },
         alerts: { type: 'boolean' },
         record: { type: 'boolean' },
@@ -203,7 +239,7 @@ export async function main(argv: string[]): Promise<number> {
     out(HELP);
     return command || values.help ? 0 : 2;
   }
-  if (!['check', 'run', 'status-page', 'validate'].includes(command)) {
+  if (!['check', 'run', 'report', 'status-page', 'validate'].includes(command)) {
     err(`Unknown command: ${command}`);
     err(HELP);
     return 2;
@@ -225,6 +261,8 @@ export async function main(argv: string[]): Promise<number> {
       return cmdCheck(config, values);
     case 'run':
       return cmdRun(config);
+    case 'report':
+      return cmdReport(config, values);
     default:
       return cmdStatusPage(config, values.out);
   }
