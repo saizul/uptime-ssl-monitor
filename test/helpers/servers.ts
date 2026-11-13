@@ -3,7 +3,7 @@ import net from 'node:net';
 import tls from 'node:tls';
 import type { AddressInfo } from 'node:net';
 import { generateSelfSignedCert, type CertOptions } from './cert.js';
-import type { HttpTarget, TcpTarget, TargetBase, TlsTarget, DomainTarget } from '../../src/types.js';
+import type { HttpTarget, TcpTarget, TargetBase, TlsTarget, DomainTarget, DnsTarget } from '../../src/types.js';
 
 export interface TestServer {
   port: number;
@@ -80,4 +80,8 @@ export const tlsTarget = (port: number, extra: Partial<TlsTarget> = {}): TlsTarg
 
 export const domainTarget = (domain: string, extra: Partial<DomainTarget> = {}): DomainTarget => ({
   ...baseTarget('domain'), type: 'domain', domain, warnDays: 30, criticalDays: 7, ...extra,
+});
+
+export const dnsTarget = (host: string, extra: Partial<DnsTarget> = {}): DnsTarget => ({
+  ...baseTarget('dns'), type: 'dns', host, recordType: 'A', expected: [], match: 'includes', resolvers: [], ...extra,
 });

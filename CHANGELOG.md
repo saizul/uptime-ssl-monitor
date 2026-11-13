@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- DNS record checks: `type: dns` resolves `host` for `recordType` A, AAAA, CNAME, MX, TXT or NS and compares the answer with `expected` (`match: includes` or `exact`). Optional `resolver` servers and `maxResponseTime`. Names and IPv6 addresses are normalized before comparing; long TXT records are reassembled.
 - `monitor report [--since 7d] [--only ...] [--json]`: uptime, incidents, downtime and latency (average and p95) per target from the stored history. Durations now accept a `w` (weeks) unit.
 - Maintenance windows: a top-level `maintenance` list (`start`, `end`, optional `targets`) suppresses alerts for matching targets while a window is active. Checks, history and the status page keep running.
 - HTTP targets accept `basicAuth` (`username`, `password`). Credentials are never forwarded to a different origin on redirect.

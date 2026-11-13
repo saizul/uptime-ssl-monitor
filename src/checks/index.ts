@@ -1,4 +1,5 @@
 import type { CheckResult, Target } from '../types.js';
+import { checkDns, type DnsResolverLike } from './dns.js';
 import { checkDomain, MemoryCache, type KeyValueCache } from './domain.js';
 import { checkHttp } from './http.js';
 import { checkTcp } from './tcp.js';
@@ -9,6 +10,8 @@ export interface RunnerContext {
   cache?: KeyValueCache;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Resolver used by DNS checks instead of one built from the target settings (tests). */
+  dnsResolver?: DnsResolverLike;
 }
 
 const fallbackCache = new MemoryCache();
@@ -23,6 +26,8 @@ export async function runCheck(target: Target, ctx: RunnerContext): Promise<Chec
         return await checkTcp(target);
       case 'tls':
         return await checkTls(target, ctx.now);
+      case 'dns':
+        return await checkDns(target, ctx.dnsResolver ? { resolver: ctx.dnsResolver } : {});
       case 'domain':
         return await checkDomain(target, {
           baseUrl: ctx.rdap.baseUrl,

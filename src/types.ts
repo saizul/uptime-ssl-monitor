@@ -85,7 +85,24 @@ export interface DomainTarget extends TargetBase {
   criticalDays: number;
 }
 
-export type Target = HttpTarget | TcpTarget | TlsTarget | DomainTarget;
+export type DnsRecordType = 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS';
+
+export interface DnsTarget extends TargetBase {
+  type: 'dns';
+  /** Name to resolve. */
+  host: string;
+  recordType: DnsRecordType;
+  /** Values that must be returned (normalized). Empty means any answer is fine. */
+  expected: string[];
+  /** "includes": every expected value is present. "exact": the answer is exactly the expected set. */
+  match: 'includes' | 'exact';
+  /** DNS servers ("1.1.1.1", "1.1.1.1:5353", "[2606:4700::1111]:53"). Empty means the system resolver configuration. */
+  resolvers: string[];
+  /** Slower answers are reported as degraded (ms). */
+  maxResponseTime?: number;
+}
+
+export type Target = HttpTarget | TcpTarget | TlsTarget | DomainTarget | DnsTarget;
 
 export interface AlertChannelConfig {
   name: string;

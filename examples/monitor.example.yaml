@@ -83,6 +83,21 @@ targets:
     criticalDays: 7             # down below 7 days
     interval: 6h
 
+  - name: Mail routing
+    type: dns
+    host: example.com
+    recordType: MX              # A (default), AAAA, CNAME, MX, TXT, NS
+    expected: ["10 mx1.example.com", mx2.example.com]   # "priority host" or just "host"
+    match: includes             # or "exact": no other values may be returned
+    resolver: [1.1.1.1]         # optional, default is the system resolver
+    interval: 5m
+
+  - name: SPF record
+    type: dns
+    host: example.com
+    recordType: TXT
+    expected: ["v=spf1 include:_spf.example.net ~all"]
+
   - name: example.com registration
     type: domain
     domain: example.com

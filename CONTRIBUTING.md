@@ -15,7 +15,8 @@ npm run build
 ## Guidelines
 
 - Tests use vitest and run against local servers: an HTTP server, a TLS server with a
-  self-signed certificate created in `test/helpers/cert.ts`, and a mocked RDAP endpoint.
+  self-signed certificate created in `test/helpers/cert.ts`, a small UDP DNS server in
+  `test/helpers/dns.ts`, and a mocked RDAP endpoint.
   Do not add tests that need the internet.
 - New check types belong in `src/checks/`, are wired up in `src/checks/index.ts`, validated
   in `src/config.ts` and covered by tests with a pure `evaluate*` function where possible.
