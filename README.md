@@ -1,10 +1,11 @@
 # uptime-ssl-monitor
 
-A small self-hosted monitor for websites, TCP services, TLS certificates and domain registrations. Run it as a one-shot check in CI, or as a daemon that stores history in SQLite, sends alerts and publishes a static status page.
+A small self-hosted monitor for websites, TCP services, TLS certificates, DNS records and domain registrations. Run it as a one-shot check in CI, or as a daemon that stores history in SQLite, sends alerts and publishes a static status page.
 
 - HTTP(S) checks: expected status, HTTP Basic auth, keyword present or absent, maximum response time (slow = degraded)
 - TCP port checks
 - TLS certificate checks: days left with warn and critical thresholds, issuer, SAN match (wildcards supported)
+- DNS record checks (A, AAAA, CNAME, MX, TXT, NS): expected values, exact or subset match, custom resolvers
 - Domain expiry through [RDAP](https://rdap.org) with caching and stale fallback
 - Per-target intervals with jitter, retries before alerting, recovery thresholds and flap protection
 - Alerts: Telegram, Slack webhook, HMAC signed webhook, email (SMTP)
@@ -76,6 +77,12 @@ targets:
     san: [example.com, www.example.com]
     warnDays: 21
     criticalDays: 7
+
+  - name: Mail routing
+    type: dns
+    host: example.com
+    recordType: MX
+    expected: [mx1.example.com, mx2.example.com]
 
   - name: example.com registration
     type: domain
@@ -169,6 +176,28 @@ Incidents for api:
 
 Builds `index.html` (self-contained, no external requests) and `status.json` from the stored history. Serve the folder with any static host.
 
+## DNS checks
+
+A `dns` target resolves `host` and compares the answer with `expected`:
+
+```yaml
+  - name: Website address
+    type: dns
+    host: www.example.com
+    recordType: A               # A (default), AAAA, CNAME, MX, TXT or NS
+    expected: [192.0.2.10]      # optional; without it any answer counts as up
+    match: includes             # "includes" (default): every expected value is present
+                                # "exact": the answer is exactly the expected set
+    resolver: [1.1.1.1, 9.9.9.9:53]   # optional; default is the system resolver configuration
+    maxResponseTime: 300ms      # optional; slower answers are degraded
+```
+
+- Names (CNAME, NS, MX hosts) are compared case-insensitively and without the trailing dot. IPv6 addresses are compared in canonical form, so `2001:db8:0::1` matches `2001:db8::1`.
+- MX values are `host` (any priority) or `priority host` (`10 mx1.example.com`).
+- TXT values are compared exactly; records split into several 255 byte strings are joined first.
+- No records (`NXDOMAIN`/`NODATA`), a resolver error, a timeout or a missing or unexpected value is `down`. The message lists what was returned, e.g. `Missing MX value(s) mx2.example.com for example.com; got 10 mx1.example.com`.
+- `resolver` entries are IP addresses with an optional port (`1.1.1.1`, `1.1.1.1:5353`, `2606:4700::1111`, `[2606:4700::1111]:53`). Queries go to these servers directly, which is useful to watch an authoritative server or to see what public resolvers return.
+
 ## How alerting works
 
 Each result is `up`, `degraded` or `down`. The confirmed status changes only when the evidence is consistent:
@@ -178,7 +207,7 @@ Each result is `up`, `degraded` or `down`. The confirmed status changes only whe
 - Flap protection: when a target changes confirmed status `flap.threshold` times within `flap.window`, one "flapping" alert is sent and individual down/recovered alerts are muted until the target has been stable for a full window ("stable again" is then sent).
 - The first successful check after start-up is silent. State survives restarts.
 
-Degraded means: slower than `maxResponseTime`, a certificate or domain inside its warning window, or an RDAP registry that could not be reached (a registry outage is never reported as your domain being down).
+Degraded means: slower than `maxResponseTime` (HTTP, TCP, DNS), a certificate or domain inside its warning window, or an RDAP registry that could not be reached (a registry outage is never reported as your domain being down).
 
 ### Maintenance windows
 
@@ -225,7 +254,7 @@ Raw results are kept for `retentionDays` (default 30). Daily rollups (checks, up
 ```bash
 npm install
 npm run lint
-npm test          # 200+ tests: local HTTP/TLS/TCP servers, generated self-signed certificates, mocked RDAP
+npm test          # 200+ tests: local HTTP/TLS/TCP/DNS servers, generated self-signed certificates, mocked RDAP
 npm run build
 ```
 

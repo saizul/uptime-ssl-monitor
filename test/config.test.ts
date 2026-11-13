@@ -192,3 +192,46 @@ describe('maintenance windows', () => {
     expect(() => parseConfig(`${MIN}\nmaintenance: soon`)).toThrow(/must be a list/);
   });
 });
+
+describe('dns targets', () => {
+  it('parses a dns target with defaults', () => {
+    const c = parseConfig(`targets:\n  - { name: Web DNS, type: dns, host: WWW.Example.com. }`);
+    expect(c.targets[0]).toMatchObject({ type: 'dns', host: 'www.example.com', recordType: 'A', expected: [], match: 'includes', resolvers: [], interval: 60_000 });
+  });
+
+  it('normalizes expected values and resolvers', () => {
+    const c = parseConfig(`
+targets:
+  - name: Mail
+    type: dns
+    host: example.com
+    recordType: mx
+    expected: ["10 MX1.Example.com.", mx2.example.com]
+    match: exact
+    resolver: [1.1.1.1, "[2606:4700::1111]:53"]
+    maxResponseTime: 500ms
+  - { name: V6, type: dns, host: example.com, recordType: AAAA, expected: "2001:DB8::0:1", resolver: 9.9.9.9 }
+`);
+    expect(c.targets[0]).toMatchObject({ recordType: 'MX', expected: ['10 mx1.example.com', 'mx2.example.com'], match: 'exact', resolvers: ['1.1.1.1', '[2606:4700::1111]:53'], maxResponseTime: 500 });
+    expect(c.targets[1]).toMatchObject({ recordType: 'AAAA', expected: ['2001:db8::1'], resolvers: ['9.9.9.9'] });
+  });
+
+  it('keeps TXT values verbatim', () => {
+    const c = parseConfig(`targets:\n  - { name: SPF, type: dns, host: example.com, recordType: TXT, expected: "v=spf1 include:_spf.Example.net ~all" }`);
+    expect(c.targets[0]).toMatchObject({ expected: ['v=spf1 include:_spf.Example.net ~all'] });
+  });
+
+  it('rejects invalid dns settings', () => {
+    const bad = (target: string, pattern: RegExp): void => {
+      expect(() => parseConfig(`targets:\n  - { name: d, type: dns, ${target} }`)).toThrow(pattern);
+    };
+    bad('recordType: A', /"host" is required/);
+    bad('host: "a b"', /"host" must be a DNS name/);
+    bad('host: example.com, recordType: SRV', /"recordType" must be one of A, AAAA, CNAME, MX, TXT, NS/);
+    bad('host: example.com, expected: ["::1"]', /"expected" "::1" is not an IPv4 address/);
+    bad('host: example.com, recordType: AAAA, expected: [1.2.3.4]', /not an IPv6 address/);
+    bad('host: example.com, match: all, expected: [1.2.3.4]', /"match" must be/);
+    bad('host: example.com, match: exact', /needs at least one "expected"/);
+    bad('host: example.com, resolver: dns.google', /"resolver" entry "dns.google"/);
+  });
+});

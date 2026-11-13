@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
-import type { AlertChannelConfig, Config, DomainTarget, HttpTarget, MaintenanceWindow, TcpTarget, Target, TargetBase, TlsTarget } from './types.js';
+import { DNS_RECORD_TYPES, isValidResolver, normalizeExpected, normalizeName } from './checks/dns.js';
+import type { AlertChannelConfig, Config, DnsRecordType, DnsTarget, DomainTarget, HttpTarget, MaintenanceWindow, TcpTarget, Target, TargetBase, TlsTarget } from './types.js';
 import { parseDuration } from './util.js';
 
 export class ConfigError extends Error {
@@ -191,8 +192,33 @@ function parseTarget(raw: unknown, defaults: Obj, index: number): Target {
       if (raw['interval'] === undefined && defaults['interval'] === undefined) target.interval = 6 * 3_600_000;
       return target;
     }
+    case 'dns': {
+      const host = normalizeName(str(raw, 'host', where) as string);
+      if (host === '' || /\s/.test(host)) throw new ConfigError(`${where}: "host" must be a DNS name`);
+      const rawType = str(raw, 'recordType', where, false) ?? 'A';
+      const recordType = rawType.toUpperCase() as DnsRecordType;
+      if (!DNS_RECORD_TYPES.includes(recordType)) throw new ConfigError(`${where}: "recordType" must be one of ${DNS_RECORD_TYPES.join(', ')}`);
+      const expected = strList(raw, 'expected', where).map((v) => {
+        try {
+          return normalizeExpected(recordType, v);
+        } catch (e) {
+          throw new ConfigError(`${where}: "expected" ${(e as Error).message}`);
+        }
+      });
+      const match = str(raw, 'match', where, false) ?? 'includes';
+      if (match !== 'includes' && match !== 'exact') throw new ConfigError(`${where}: "match" must be "includes" or "exact"`);
+      if (match === 'exact' && expected.length === 0) throw new ConfigError(`${where}: "match: exact" needs at least one "expected" value`);
+      const resolvers = strList(raw, 'resolver', where).map((r) => r.trim());
+      for (const r of resolvers) {
+        if (!isValidResolver(r)) throw new ConfigError(`${where}: "resolver" entry "${r}" must be an IP address with an optional port, e.g. 1.1.1.1 or 1.1.1.1:53`);
+      }
+      const target: DnsTarget = { ...base, type: 'dns', host, recordType, expected, match, resolvers };
+      const max = dur(raw, 'maxResponseTime', where, undefined);
+      if (max !== undefined) target.maxResponseTime = max;
+      return target;
+    }
     default:
-      throw new ConfigError(`${where}: "type" must be one of http, tcp, tls, domain`);
+      throw new ConfigError(`${where}: "type" must be one of http, tcp, tls, domain, dns`);
   }
 }
 

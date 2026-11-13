@@ -7,6 +7,7 @@ export { Store } from './store.js';
 export { buildReport, buildTargetReport, findIncidents, formatReport, percentile } from './report.js';
 export type { Incident, Report, ReportInput, TargetReport } from './report.js';
 export { buildStatusModel, renderStatusPage, writeStatusPage } from './statuspage.js';
-export { runCheck } from './checks/index.js';
+export { runCheck, type RunnerContext } from './checks/index.js';
+export { checkDns, type DnsResolverLike } from './checks/dns.js';
 export { createChannels, dispatchAlert, signPayload, verifySignature } from './alerts/index.js';
 export type { AlertChannel, EmailTransport } from './alerts/index.js';
